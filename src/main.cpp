@@ -1,5 +1,6 @@
 #include <iostream>
 #include <future>
+#include <thread>
 #include <algorithm>
 #include <string>
 #include <windows.h>
@@ -11,6 +12,8 @@
 #include "utils.h"
 
 using std::string;
+
+static const std::string null_redirect = " >nul 2>&1";
 
 ResultStatus create_process(std::string& command) {
 	STARTUPINFO si;
@@ -42,24 +45,24 @@ ResultStatus create_process(std::string& command) {
 }
 
 std::string choose_profile(std::string& resolution){
-    std::cout << "1. 480" << std::endl;
-    std::cout << "2. 720" << std::endl;
-    std::cout << "3. 1080" << std::endl;
+    std::cout << "1: 480" << std::endl;
+    std::cout << "2: 720" << std::endl;
+    std::cout << "3: 1080" << std::endl;
     static const std::map<unsigned, std::string> map_options = {
         {1, "480p"},
         {2, "720p"},
         {3, "1080p"}
     };
     unsigned option = 1;
-    std::cout << "Please choose profile: ";
+    std::cout << "Please choose profile [1,2,3]? ";
     std::cin >> option;
     resolution = map_options.at(option);
     return get_profile(resolution);
 }
 
 std::string make_avs(std::string episode, std::string resolution, std::string file_format, std::vector<std::string> subs = {}) {
-    static const std::string ffms2_dll_path = "LoadPlugin(\"D:\\FinalDevil\\EncodeCLI\\Dll\\ffms2.dll\")";
-    static const std::string vsfilter_mod_dll_path = "LoadPlugin(\"D:\\FinalDevil\\EncodeCLI\\Dll\\VSFilterMod.dll\")";
+    static const std::string ffms2_dll_path = "LoadPlugin(\"D:\\FinalDevil\\EncodeCLI\\ffms2.dll\")";
+    static const std::string vsfilter_mod_dll_path = "LoadPlugin(\"D:\\FinalDevil\\EncodeCLI\\VSFilterMod.dll\")";
 	std::string output_name = episode + "-[" + resolution + "]";
 	std::ofstream avs(output_name + ".avs");
 	avs << ffms2_dll_path + "\n";
@@ -78,22 +81,48 @@ std::string make_avs(std::string episode, std::string resolution, std::string fi
 	for (size_t i = 0; i < subs.size(); i++) {
 		avs << "TextSubMod(\"" + BASE_SUB_PATH + subs[i] + ".ass\", 1)\n";
 	}
+	if (resolution == "480p") {
+		avs << "LanczosResize(848, 480)\n";
+	}
     return output_name;
 }
 
+ResultStatus encode_video(std::string encode_command) {
+	std::cout << "Encoding video " << std::endl;
+	//return create_process(encode_command);
+	return ResultStatus::SUCCESS;
+}
+
+std::string encode_audio(std::string episode, std::string resolution, std::string file_format) {
+	std::cout << "Encoding audio" << std::endl;
+	std::string audio_output = episode + "-" + resolution + "-audio.mp4";
+	std::string wav_file = episode + "-" + resolution + ".wav";
+	system(std::string("ffmpeg -i " + BASE_SOURCE_PATH + episode + "." + file_format + " -vn -f wav " + wav_file + null_redirect).c_str());
+	system(std::string("neroAacEnc -if " + wav_file + " -ignorelength -lc -br 96000 -of " + audio_output + null_redirect).c_str());
+	system(std::string("del " + wav_file + null_redirect).c_str());
+	return audio_output;
+}
+
 ResultStatus encode_one_episode(std::string episode, std::string resolution, std::string profile, std::vector<std::string> subs = {}) {
-	std::string file_format = "mp4";
+	std::string file_format;
 	const bool exist = any_source_format_exist(episode, file_format);
 	if (!exist) {
 		std::cout << "Can not find source for episode " << episode << std::endl;
 		return ResultStatus::E_FILE_NOT_FOUND;
 	}
-    //std::cout << "Encoding " << resolution << " episode " << episode << std::endl;
+	std::cout << "Encoding episode " << episode << " with profile " << resolution << std::endl;
     std::string output_name = make_avs(episode, resolution, file_format, subs);
 	std::string encoded_video = output_name + ".264";
     std::string stats_file = episode + "-" + resolution + ".stats";
 	std::string avs_file = output_name + ".avs";
     static std::string binary = get_binary(Binary::x264_8bit);
+
+	std::future<std::string> encode_audio_thread = std::async(std::launch::async, 
+		[episode, resolution, file_format]() {
+			return encode_audio(episode, resolution, file_format);
+		});
+
+	std::string audio_output = encode_audio_thread.get();
 
     for (unsigned i = 1; i <= 2; i++) {
         std::string profile_i_th = profile;
@@ -101,26 +130,20 @@ ResultStatus encode_one_episode(std::string episode, std::string resolution, std
         str_replace_inplace("{stats}", stats_file, profile_i_th);
         str_replace_inplace("{output}", i == 1 ? "NUL" : encoded_video, profile_i_th);
         str_replace_inplace("{avs}", avs_file, profile_i_th);
-		std::string encode_command("avs4x26x --x26x-binary " + binary + profile_i_th + " 2>&1 nul");
-		create_process(encode_command);
+		std::string encode_command("avs4x26x --x26x-binary " + binary + profile_i_th + null_redirect);
+		encode_video(encode_command);
     }
-
-	std::string audio_output = episode + "-" + resolution + "-audio.mp4";
-	std::string wav_file = episode + "-" + resolution + ".wav";
-	system(std::string("ffmpeg - i " + BASE_SOURCE_PATH + episode + "." + file_format + " -vn - f wav " + wav_file + "2>&1 nul").c_str());
-	system(std::string("neroAacEnc - if " + wav_file + " -ignorelength - lc - br 96000 - of " + audio_output + " 2>&1 nul").c_str());
 	
 	const std::string final_video = output_name + ".mp4";
-	std::string mux_cmd = "mp4box -add " + audio_output + " -add " + encoded_video + " " + final_video + " 2> nul";
-	create_process(mux_cmd);
+	std::string mux_cmd = "mp4box -add " + audio_output + " -add " + encoded_video + " " + final_video + null_redirect;
+	system(mux_cmd.c_str());
 
-	system(std::string("del " + stats_file + "2>&1 nul").c_str());
-	system(std::string("del " + stats_file + ".mbtree" + "2>&1 nul").c_str());
-	system(std::string("del " + encoded_video + "2>&1 nul").c_str());
-	system(std::string("del " + audio_output + "2>&1 nul").c_str());
-	system(std::string("del " + avs_file + "2>&1 nul").c_str());
-	system(std::string("del " + BASE_SOURCE_PATH + episode + "." + file_format + ".ffindex" + "2>&1 nul").c_str());
-	system(std::string("del " + wav_file + "2>&1 nul").c_str());
+	system(std::string("del " + stats_file + null_redirect).c_str());
+	system(std::string("del " + stats_file + ".mbtree" + null_redirect).c_str());
+	system(std::string("del " + encoded_video + null_redirect).c_str());
+	system(std::string("del " + audio_output + null_redirect).c_str());
+	system(std::string("del " + avs_file + null_redirect).c_str());
+	system(std::string("del " + BASE_SOURCE_PATH + episode + "." + file_format + ".ffindex" + null_redirect).c_str());
     return ResultStatus::SUCCESS;
 }
 
@@ -151,6 +174,7 @@ int main(int argc, char const *argv[]) {
 	std::cout << username << std::endl;*/
 	std::string resolution = "480p";
 	std::string profile = choose_profile(resolution);
+	std::time_t s_time;
     if (argc >= 2) {
         std::string file_name = argv[1];
         std::vector<std::string> subs = [&argc, &argv]() {
@@ -162,6 +186,7 @@ int main(int argc, char const *argv[]) {
             }
             return subs;
         }();
+		s_time = real_time_now();
 		encode_one_episode(std::string(argv[1]), resolution, profile, subs);
     } else {
         std::cout << "Batch encode need to choose file format first!" << std::endl;
@@ -169,7 +194,7 @@ int main(int argc, char const *argv[]) {
         std::cout << "1: mkv" << std::endl;
         unsigned source_type;
         while(true) {
-            std::cout << "Choose one of above: ";
+            std::cout << "Please choose source format [0,1]? ";
             std::cin >> source_type;
             if (source_type == 0 || source_type == 1) {
                 break;
@@ -177,5 +202,6 @@ int main(int argc, char const *argv[]) {
         }
         batch_encode(get_source_type(source_type), resolution, profile);
     }
+	std::cout << "Total encoded time = " << real_time_now() - s_time;
     return 0;
 }

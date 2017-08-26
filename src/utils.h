@@ -1,6 +1,7 @@
 #pragma once
 #include <map>
 #include <fstream>
+#include <ctime>
 #include <cassert>
 
 static const std::string BASE_SOURCE_PATH = "Source\\";
@@ -29,9 +30,9 @@ std::string get_source_type(unsigned index) {
 
 std::string get_profile(const std::string need_profile) {
     static const std::map<std::string, std::string> profiles = {
-        {"480p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 430 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
-        {"720p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 1300 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
-        {"1080p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 2300 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"}
+        {"480p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 430 --no-progress --quiet --colorprim bt709 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
+        {"720p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 1300 --no-progress --quiet --colorprim bt709 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
+        {"1080p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 2300 --no-progress --quiet --colorprim bt709 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"}
     };
     return profiles.at(need_profile);
 }
@@ -93,4 +94,8 @@ bool any_source_format_exist(std::string episode, std::string& format) {
 		return true;
 	}
 	return false;
+}
+
+std::time_t real_time_now() {
+	return std::time(nullptr);
 }
