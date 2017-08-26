@@ -88,17 +88,14 @@ std::string make_avs(std::string episode, std::string resolution, std::string fi
 }
 
 ResultStatus encode_video(std::string encode_command) {
-	std::cout << "Encoding video " << std::endl;
-	//return create_process(encode_command);
-	return ResultStatus::SUCCESS;
+	return create_process(encode_command);
 }
 
 std::string encode_audio(std::string episode, std::string resolution, std::string file_format) {
-	std::cout << "Encoding audio" << std::endl;
 	std::string audio_output = episode + "-" + resolution + "-audio.mp4";
 	std::string wav_file = episode + "-" + resolution + ".wav";
 	system(std::string("ffmpeg -i " + BASE_SOURCE_PATH + episode + "." + file_format + " -vn -f wav " + wav_file + null_redirect).c_str());
-	system(std::string("neroAacEnc -if " + wav_file + " -ignorelength -lc -br 96000 -of " + audio_output + null_redirect).c_str());
+	system(std::string("neroAacEnc -if " + wav_file + " -ignorelength -he -br 96000 -of " + audio_output + null_redirect).c_str());
 	system(std::string("del " + wav_file + null_redirect).c_str());
 	return audio_output;
 }
@@ -117,12 +114,11 @@ ResultStatus encode_one_episode(std::string episode, std::string resolution, std
 	std::string avs_file = output_name + ".avs";
     static std::string binary = get_binary(Binary::x264_8bit);
 
-	std::future<std::string> encode_audio_thread = std::async(std::launch::async, 
+	std::string audio_output;
+	std::future<std::string> audio_task = std::async(std::launch::async,
 		[episode, resolution, file_format]() {
 			return encode_audio(episode, resolution, file_format);
 		});
-
-	std::string audio_output = encode_audio_thread.get();
 
     for (unsigned i = 1; i <= 2; i++) {
         std::string profile_i_th = profile;
@@ -131,7 +127,20 @@ ResultStatus encode_one_episode(std::string episode, std::string resolution, std
         str_replace_inplace("{output}", i == 1 ? "NUL" : encoded_video, profile_i_th);
         str_replace_inplace("{avs}", avs_file, profile_i_th);
 		std::string encode_command("avs4x26x --x26x-binary " + binary + profile_i_th + null_redirect);
-		encode_video(encode_command);
+		ResultStatus status;
+		if (i == 1) {
+			std::future<ResultStatus> pass1_task = std::async(std::launch::async, 
+				[encode_command]() {
+					return encode_video(encode_command);
+				});
+			audio_output = audio_task.get();
+			status = pass1_task.get();
+		} else {
+			status = encode_video(encode_command);
+		}
+		if (status != ResultStatus::SUCCESS) {
+			return status;
+		}
     }
 	
 	const std::string final_video = output_name + ".mp4";
@@ -144,6 +153,7 @@ ResultStatus encode_one_episode(std::string episode, std::string resolution, std
 	system(std::string("del " + audio_output + null_redirect).c_str());
 	system(std::string("del " + avs_file + null_redirect).c_str());
 	system(std::string("del " + BASE_SOURCE_PATH + episode + "." + file_format + ".ffindex" + null_redirect).c_str());
+	std::cout << "Done encode episode " << episode << std::endl;
     return ResultStatus::SUCCESS;
 }
 
@@ -202,6 +212,6 @@ int main(int argc, char const *argv[]) {
         }
         batch_encode(get_source_type(source_type), resolution, profile);
     }
-	std::cout << "Total encoded time = " << real_time_now() - s_time;
+	std::cout << "Total encoded time = " << real_time_now() - s_time << "seconds";
     return 0;
 }
