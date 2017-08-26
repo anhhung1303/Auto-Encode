@@ -3,11 +3,20 @@
 #include <fstream>
 #include <cassert>
 
+static const std::string BASE_SOURCE_PATH = "Source\\";
+static const std::string BASE_SUB_PATH = "Subs\\";
+
 enum class Binary {
     x264_8bit = 0,
     x264_10bit,
     x265_8bit,
     x265_10bit
+};
+
+enum class ResultStatus : unsigned {
+	SUCCESS = 0,
+	E_FILE_NOT_FOUND,
+	E_CREATE_PROCESS_FAILED
 };
 
 std::string get_source_type(unsigned index) {
@@ -72,4 +81,16 @@ void split(const std::string& s, std::vector<std::string>& v, char delimiter) {
             end = s.find_first_of(delimiter, start);
         }
     }
+}
+
+bool any_source_format_exist(std::string episode, std::string& format) {
+	if (is_file_exist(BASE_SOURCE_PATH + episode + ".mp4")) {
+		format = "mp4";
+		return true;
+	}
+	if (is_file_exist(BASE_SOURCE_PATH + episode + ".mkv")) {
+		format = "mkv";
+		return true;
+	}
+	return false;
 }
