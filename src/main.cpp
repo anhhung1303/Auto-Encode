@@ -73,7 +73,7 @@ std::string make_avs(std::string episode, std::string resolution, std::string fi
 		avs << "TextSubMod(\"" + BASE_SUB_PATH + episode + ".ass\", 1)\n";
 	}
 	else {
-		std::cout << "Can not find " << BASE_SUB_PATH + episode + ".ass => ignore" << std::endl;
+		std::cout << "Can not find " << BASE_SUB_PATH + episode + ".ass => assume hardsub" << std::endl;
 	}
 	if (is_file_exist(BASE_SUB_PATH + "logo.ass")) {
 		avs << "TextSubMod(\"" + BASE_SUB_PATH + "logo.ass\", 1)\n";
@@ -88,10 +88,13 @@ std::string make_avs(std::string episode, std::string resolution, std::string fi
 }
 
 ResultStatus encode_video(std::string encode_command) {
+	//std::cout << "Encoding video" << std::endl;
 	return create_process(encode_command);
+	//return ResultStatus::SUCCESS;
 }
 
 std::string encode_audio(std::string episode, std::string resolution, std::string file_format) {
+	//std::cout << "Encoding audio " << episode << std::endl;
 	std::string audio_output = episode + "-" + resolution + "-audio.mp4";
 	std::string wav_file = episode + "-" + resolution + ".wav";
 	system(std::string("ffmpeg -i " + BASE_SOURCE_PATH + episode + "." + file_format + " -vn -f wav " + wav_file + null_redirect).c_str());
@@ -101,20 +104,20 @@ std::string encode_audio(std::string episode, std::string resolution, std::strin
 }
 
 ResultStatus encode_one_episode(std::string episode, std::string resolution, std::string profile, std::vector<std::string> subs = {}) {
+	std::cout << "Encoding episode " << episode << " with profile " << resolution << std::endl;
 	std::string file_format;
 	const bool exist = any_source_format_exist(episode, file_format);
 	if (!exist) {
 		std::cout << "Can not find source for episode " << episode << std::endl;
 		return ResultStatus::E_FILE_NOT_FOUND;
 	}
-	std::cout << "Encoding episode " << episode << " with profile " << resolution << std::endl;
     std::string output_name = make_avs(episode, resolution, file_format, subs);
+	Sleep(1000); // Safety wait until avs creation 100% completed
 	std::string encoded_video = output_name + ".264";
     std::string stats_file = episode + "-" + resolution + ".stats";
 	std::string avs_file = output_name + ".avs";
     static std::string binary = get_binary(Binary::x264_8bit);
 
-	std::string audio_output;
 	std::future<std::string> audio_task = std::async(std::launch::async,
 		[episode, resolution, file_format]() {
 			return encode_audio(episode, resolution, file_format);
@@ -126,23 +129,22 @@ ResultStatus encode_one_episode(std::string episode, std::string resolution, std
         str_replace_inplace("{stats}", stats_file, profile_i_th);
         str_replace_inplace("{output}", i == 1 ? "NUL" : encoded_video, profile_i_th);
         str_replace_inplace("{avs}", avs_file, profile_i_th);
-		std::string encode_command("avs4x26x --x26x-binary " + binary + profile_i_th + null_redirect);
-		ResultStatus status;
+		std::string encode_command("avs4x26x --x26x-binary --seek-mode fast " + binary + profile_i_th + null_redirect);
+		ResultStatus status = encode_video(encode_command);
+		/*std::future<ResultStatus> pass_task = std::async(std::launch::async,
+			[encode_command]() {
+			return encode_video(encode_command);
+		});
+		status = pass_task.get();
 		if (i == 1) {
-			std::future<ResultStatus> pass1_task = std::async(std::launch::async, 
-				[encode_command]() {
-					return encode_video(encode_command);
-				});
-			audio_output = audio_task.get();
-			status = pass1_task.get();
-		} else {
-			status = encode_video(encode_command);
-		}
+			audio_output = encode_audio(episode, resolution, file_format);
+		}*/
 		if (status != ResultStatus::SUCCESS) {
 			return status;
 		}
     }
-	
+
+	std::string audio_output = episode + "-" + resolution + "-audio.mp4";
 	const std::string final_video = output_name + ".mp4";
 	std::string mux_cmd = "mp4box -add " + audio_output + " -add " + encoded_video + " " + final_video + null_redirect;
 	system(mux_cmd.c_str());
@@ -178,6 +180,10 @@ void batch_encode(std::string file_format, std::string resolution, std::string p
 }
 
 int main(int argc, char const *argv[]) {
+	std::cout << "----------------------------------" << std::endl;
+	std::cout << "| VuiGhe encode tool version 2.0 |" << std::endl;
+	std::cout << "| @Author: FinalDevil            |" << std::endl;
+	std::cout << "----------------------------------" << std::endl;
 	/*char username[UNLEN + 1];
 	DWORD username_len = UNLEN + 1;
 	GetUserName(username, &username_len);
@@ -210,8 +216,13 @@ int main(int argc, char const *argv[]) {
                 break;
             }
         }
+		s_time = real_time_now();
         batch_encode(get_source_type(source_type), resolution, profile);
     }
-	std::cout << "Total encoded time = " << real_time_now() - s_time << "seconds";
+	auto duration = real_time_now() - s_time;
+	auto minutes = static_cast<int>((duration / 60) % 60);
+	auto hours = static_cast<int>(minutes / 60);
+	auto seconds = static_cast<int>(duration % 60);
+	std::cout << "Total encoded time: " << hours << ":" << minutes << ":" << seconds << std::endl;
     return 0;
 }
