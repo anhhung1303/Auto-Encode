@@ -45,9 +45,9 @@ ResultStatus create_process(std::string& command) {
 }
 
 std::string choose_profile(std::string& resolution){
-    std::cout << "1: 480" << std::endl;
-    std::cout << "2: 720" << std::endl;
-    std::cout << "3: 1080" << std::endl;
+    std::cout << "1: 480p" << std::endl;
+    std::cout << "2: 720p" << std::endl;
+    std::cout << "3: 1080p" << std::endl;
 	std::cout << "4: 720p download" << std::endl;
     static const std::map<unsigned, std::string> map_options = {
         {1, "480p"},
