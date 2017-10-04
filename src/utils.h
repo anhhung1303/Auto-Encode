@@ -30,9 +30,10 @@ std::string get_source_type(unsigned index) {
 
 std::string get_profile(const std::string need_profile) {
     static const std::map<std::string, std::string> profiles = {
-        {"480p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 430 --no-progress --quiet --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
-        {"720p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 1300 --no-progress --quiet --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
-        {"1080p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 2300 --no-progress --quiet --pass {pass} --stats {stats} --output {output} {avs} --threads 16"}
+        {"480p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 430 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
+        {"720p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 1300 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
+        {"1080p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 2300 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
+		{ "720pdl", " --profile baseline --tune animation --level 5.1 --pass 1 --bitrate 2000 --deblock 1:1 --b-pyramid none --ref 5 --chroma-qp-offset -2 --vbv-bufsize 300000 --vbv-maxrate 300000 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"}
     };
     return profiles.at(need_profile);
 }

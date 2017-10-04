@@ -48,13 +48,15 @@ std::string choose_profile(std::string& resolution){
     std::cout << "1: 480" << std::endl;
     std::cout << "2: 720" << std::endl;
     std::cout << "3: 1080" << std::endl;
+	std::cout << "4: 720p download" << std::endl;
     static const std::map<unsigned, std::string> map_options = {
         {1, "480p"},
         {2, "720p"},
-        {3, "1080p"}
+        {3, "1080p"},
+		{4, "720pdl"}
     };
     unsigned option = 1;
-    std::cout << "Please choose profile [1,2,3]? ";
+    std::cout << "Please choose profile [1,2,3,4]? ";
     std::cin >> option;
     resolution = map_options.at(option);
     return get_profile(resolution);
