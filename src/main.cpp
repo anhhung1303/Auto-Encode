@@ -45,19 +45,33 @@ ResultStatus create_process(std::string& command) {
 }
 
 std::string choose_profile(std::string& resolution){
+	char username[UNLEN + 1];
+	DWORD username_len = UNLEN + 1;
+	GetUserName(username, &username_len);
+	std::string username_string(username);
+	static const std::string finaldevil = "FinalDevil";
+
     std::cout << "1: 480p" << std::endl;
     std::cout << "2: 720p" << std::endl;
     std::cout << "3: 1080p" << std::endl;
-	std::cout << "4: 720p download" << std::endl;
+	if (username_string == finaldevil) {
+		std::cout << "4: 720p download" << std::endl;
+		std::cout << "5: 1080p_x265_8bit" << std::endl;
+	}
     static const std::map<unsigned, std::string> map_options = {
         {1, "480p"},
         {2, "720p"},
         {3, "1080p"},
-		{4, "720pdl"}
+		{4, "720pdl"},
+		{5, "1080_x265_8bit"}
     };
     unsigned option = 1;
-    std::cout << "Please choose profile [1,2,3,4]? ";
+    std::cout << "Please choose profile [1,2,3]? ";
     std::cin >> option;
+	if (username_string != finaldevil && option >= 4) {
+		std::cout << "God blessed you!" << std::endl;
+		exit(0);
+	}
     resolution = map_options.at(option);
     return get_profile(resolution);
 }
@@ -100,7 +114,7 @@ std::string encode_audio(std::string episode, std::string resolution, std::strin
 	std::string audio_output = episode + "-" + resolution + "-audio.mp4";
 	std::string wav_file = episode + "-" + resolution + ".wav";
 	system(std::string("ffmpeg -i " + BASE_SOURCE_PATH + episode + "." + file_format + " -vn -f wav " + wav_file + null_redirect).c_str());
-	system(std::string("neroAacEnc -if " + wav_file + " -ignorelength -he -br 96000 -of " + audio_output + null_redirect).c_str());
+	system(std::string("neroAacEnc -if " + wav_file + " -ignorelength -lc -br 96000 -of " + audio_output + null_redirect).c_str());
 	system(std::string("del " + wav_file + null_redirect).c_str());
 	return audio_output;
 }
@@ -115,10 +129,10 @@ ResultStatus encode_one_episode(std::string episode, std::string resolution, std
 	}
     std::string output_name = make_avs(episode, resolution, file_format, subs);
 	Sleep(1000); // Safety wait until avs creation 100% completed
-	std::string encoded_video = output_name + ".264";
+	std::string encoded_video = output_name + (is_x265(resolution) ? ".265" : ".264");
     std::string stats_file = episode + "-" + resolution + ".stats";
 	std::string avs_file = output_name + ".avs";
-    static std::string binary = get_binary(Binary::x264_8bit);
+    static std::string binary = get_binary(resolution);
 
 	std::future<std::string> audio_task = std::async(std::launch::async,
 		[episode, resolution, file_format]() {
@@ -131,7 +145,7 @@ ResultStatus encode_one_episode(std::string episode, std::string resolution, std
         str_replace_inplace("{stats}", stats_file, profile_i_th);
         str_replace_inplace("{output}", i == 1 ? "NUL" : encoded_video, profile_i_th);
         str_replace_inplace("{avs}", avs_file, profile_i_th);
-		std::string encode_command("avs4x26x --x26x-binary --seek-mode fast " + binary + profile_i_th + null_redirect);
+		std::string encode_command("avs4x26x --x26x-binary --seek-mode fast " + binary + profile_i_th + (is_x265(resolution) ? "" : null_redirect));
 		ResultStatus status = encode_video(encode_command);
 		/*std::future<ResultStatus> pass_task = std::async(std::launch::async,
 			[encode_command]() {

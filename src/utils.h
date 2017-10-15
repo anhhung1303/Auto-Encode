@@ -33,7 +33,8 @@ std::string get_profile(const std::string need_profile) {
         {"480p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 430 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
         {"720p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 1300 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
         {"1080p", " --profile baseline --tune animation --bframes 3 --level 3.0 --bitrate 2300 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
-		{ "720pdl", " --profile baseline --tune animation --level 5.1 --pass 1 --bitrate 2000 --deblock 1:1 --b-pyramid none --ref 5 --chroma-qp-offset -2 --vbv-bufsize 300000 --vbv-maxrate 300000 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"}
+		{ "720pdl", " --profile baseline --tune animation --level 5.1 --bitrate 2000 --deblock 1:1 --b-pyramid none --ref 5 --chroma-qp-offset -2 --vbv-bufsize 240000 --vbv-maxrate 240000 --pass {pass} --stats {stats} --output {output} {avs} --threads 16"},
+		{ "1080_x265_8bit", " --preset slow --ref 6 --deblock -2:-2 --aq-mode 1 --aq-strength 1.5 --b-adapt 2 --bframes 8 --rc-lookahead 60 --colorprim bt709 --transfer bt709 --colormatrix bt709 --level 5.1 --bitrate 2500 --pass {pass} --stats {stats} --output {output} {avs}" }
     };
     return profiles.at(need_profile);
 }
@@ -51,6 +52,14 @@ std::string get_binary(Binary binary) {
         default:
             return "x264_64_8";
     }
+}
+
+bool is_x265(const std::string resolution) {
+	return (resolution.find("x265") != std::string::npos);
+}
+
+std::string get_binary(std::string resolution) {
+	return is_x265(resolution) ? "x265_64_8" : "x264_64_8";
 }
 
 bool is_file_exist(const std::string file_name) {
